@@ -1,7 +1,5 @@
 package model;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +16,7 @@ public class BAM
 	/**
 	 * Using Picard to read the reads from the BAM file created by the alignment tool
 	 */
-	public static void readBAM()
+	public static HashMap<String, ResultStruct> readBAM()
 	{
 		// TODO Handle paired reads? Count once each read (current) or count pairs and discard single reads?
 		// TODO Handle UMI? Default in UB tag (corrected) UB:Z:GGTGCTTGTTACA or UR tag (non corrected) UR:Z:GAGTCGCGCTCAG
@@ -26,11 +24,14 @@ public class BAM
 		// Init result struct
 		HashMap<String, ResultStruct> results = new HashMap<String, ResultStruct>();
 		for(String barcode:Parameters.barcodes) results.put(barcode, new ResultStruct(Global.geneIndex.size()));
-		int foundGXTag = 0;
+
+		// Init temporary paired read buffer
+		HashMap<String, Read> pairedBuffer = null;
+		if(Parameters.is_paired) pairedBuffer = new HashMap<String, Read>();
 		
 		// Start reading BAM file
 		Long start = System.currentTimeMillis();
-		System.out.println("\nReading the reads from the BAM file...");
+		System.out.println("\nReading the reads from the BAM file provided: " + Parameters.inputBAMFile);
 		try
 		{
 			SamReaderFactory samReaderFactory = SamReaderFactory.makeDefault().validationStringency(ValidationStringency.SILENT);
@@ -61,47 +62,93 @@ public class BAM
 				res.nbReads++; // Count reads by barcode
 				
 				// Quantify read according to its tags
+				if(Parameters.is_paired && !samRecord.getReadPairedFlag()) new ErrorMessage("You used the --paired option, but it seems that some reads are not paired?");
+				if(samRecord.getDuplicateReadFlag()) Global.duplicates++; // Just count this
 				if(samRecord.getReadUnmappedFlag()) { Global.unmapped++; res.unmapped++; }
-				else if(samRecord.getMappingQuality() < Parameters.minAQual) { Global.toolowAqual++; res.toolowAqual++; }
 				else
 				{
 					boolean toProcess = true;
-					if(samRecord.getSupplementaryAlignmentFlag())
+					if(samRecord.isSecondaryOrSupplementary())
 					{
 						Global.notUnique++; res.notUnique++;
 						if(!Parameters.keep_multiple_mapped_reads) toProcess = false;
 					}
 					if(toProcess)
 					{
-						if(Parameters.use_bam_tags)
+						// Paired-end
+						if(Parameters.is_paired)
 						{
-							String gene_id = (String)samRecord.getAttribute("GX");
-							//String gene_name = (String)samRecord.getAttribute("GN"); // Not used
-							if(gene_id == null || gene_id.equals("-")) { Global.noFeature++; res.noFeature++; }
-							else 
-							{	
-								foundGXTag++;
-								Global.mapped++; res.mapped++;
-								Integer indexGene = Global.geneIndex.get(gene_id); // From GTF
-								if(indexGene == null) new ErrorMessage("ERROR: This gene " + gene_id + " is not in your GTF file. Please check again.");
-								res.counts[indexGene]++;
+							// If MateUnmapped flag, then the read cannot have the "ProperPair" flag
+							if(samRecord.getMateUnmappedFlag()) { Global.mateUnmapped++; res.mateUnmapped++; }
+							if(samRecord.getProperPairFlag()) { Global.properlyPaired++; res.properlyPaired++; }
+							if(samRecord.getMateUnmappedFlag())
+							{
+								Global.countedUnique++;
+								// Process this singleton read as if it was single-end (not stored)
+								processSingleEndRead(samRecord, res);
+							}
+							else
+							{
+								String name = samRecord.getReadName();
+								Read read1 = pairedBuffer.remove(samRecord.getReadName());
+								if(read1 != null) // I run the counting only if two pairs are identified/available
+								{
+									Global.countedPair++;
+									if(samRecord.getMappingQuality() < Parameters.minAQual || read1.mapQ < Parameters.minAQual) { Global.toolowAqual++; res.toolowAqual++; } // To match htseq-count. I do this first
+									else
+									{
+										if(Parameters.use_bam_tags)
+										{
+											String gene_id_1 = read1.gene;
+											String gene_id_2 = (String)samRecord.getAttribute("GX");
+											if(gene_id_1 != null && gene_id_1.equals("-")) gene_id_1 = null;
+											if(gene_id_2 != null && gene_id_2.equals("-")) gene_id_2 = null;
+											if(gene_id_1 != null && gene_id_2 != null && !gene_id_1.equals(gene_id_2)) { Global.foundGXTag++; Global.ambiguous++; res.ambiguous++; }
+											else if(gene_id_1 == null && gene_id_2 == null) { Global.noFeature++; res.noFeature++; }
+											else
+											{
+												Global.foundGXTag++;
+												String gene_id = gene_id_1;
+												if(gene_id == null) gene_id = gene_id_2;
+												Global.mapped = Global.mapped + 2; res.mapped = res.mapped + 2;
+												Integer indexGene = Global.geneIndex.get(gene_id); // From GTF
+												if(indexGene == null) new ErrorMessage("ERROR: This gene " + gene_id + " is not in your GTF file. Please check again.");
+												res.counts[indexGene]++;
+											}
+										}
+										else // Use positions
+										{
+											
+											HashSet<String> overlappingGenes_1 = Utils.getOverlappingFeatures(read1.chr, read1.startV, read1.endV, read1.cigar, read1.negativeStrandFlag);
+											HashSet<String> overlappingGenes_2 = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
+											
+											if(overlappingGenes_1.size() == 0 && overlappingGenes_2.size() == 0) { Global.noFeature++; res.noFeature++; }
+											else
+											{
+												overlappingGenes_1.addAll(overlappingGenes_2);
+												if(overlappingGenes_1.size() == 1)	
+												{
+													Global.mapped++; res.mapped++;
+													String gene = overlappingGenes_1.iterator().next();
+													res.counts[Global.geneIndex.get(gene)]++;
+												}
+												else { Global.ambiguous++; res.ambiguous++;  }
+											}
+										}
+									}
+								}
+								else 
+								{
+									pairedBuffer.put(name, new Read(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getMappingQuality(), (String)samRecord.getAttribute("GX")));
+								}
 							}
 						}
-						else // Use positions
+						else
 						{
-							HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
-							if(overlappingGenes.size() == 0) { Global.noFeature++; res.noFeature++; }
-							else if(overlappingGenes.size() == 1)	
-							{
-								Global.mapped++; res.mapped++;
-								String gene = overlappingGenes.iterator().next();
-								res.counts[Global.geneIndex.get(gene)]++;
-							}
-							else { Global.ambiguous++; res.ambiguous++; }
+							// Single-end
+							processSingleEndRead(samRecord, res);
 						}
 					}
-					
-
 				}
 				
 				if(Global.nbReads % 10000000 == 0) System.out.println(Global.nbReads + " reads were processed from BAM file [" + Utils.toReadableTime(System.currentTimeMillis() - start) + "]");
@@ -112,118 +159,71 @@ public class BAM
 		{
 			new ErrorMessage(ioe.getMessage());
 		}
-		System.out.println(Global.nbReads + " reads were processed from BAM file [" + Utils.toReadableTime(System.currentTimeMillis() - start) + "]\n");
+		System.out.println(Global.nbReads + " reads were processed from BAM file [" + Utils.toReadableTime(System.currentTimeMillis() - start) + "]");
+		long total = Global.nbReads;
 		
-		System.out.println(Global.mapped + " 'Mapped' reads (" + Utils.pcFormatter.format(((float)Global.mapped / Global.nbReads) * 100) + "%)");
-		System.out.println(Global.ambiguous + " 'Ambiguous' reads (" + Utils.pcFormatter.format(((float)Global.ambiguous / Global.nbReads) * 100) + "%)");
-		System.out.println(Global.noFeature + " 'No Features' reads (" + Utils.pcFormatter.format(((float)Global.noFeature / Global.nbReads) * 100) + "%)");
-		System.out.println(Global.notUnique + " 'Not Unique' reads (" + Utils.pcFormatter.format(((float)Global.notUnique / Global.nbReads) * 100) + "%)");
-		System.out.println(Global.unmapped + " 'Not Aligned' reads (" + Utils.pcFormatter.format(((float)Global.unmapped / Global.nbReads) * 100) + "%)");
-		System.out.println(Global.toolowAqual + " 'Too Low aQual' reads (" + Utils.pcFormatter.format(((float)Global.toolowAqual / Global.nbReads) * 100) + "%)");
-		if(Parameters.doDemultiplexing) System.out.println(Global.notDemultiplexed + " 'Aligned but not demultiplexed' reads (" + Utils.pcFormatter.format(((float)Global.notDemultiplexed / Global.nbReads) * 100) + "%)");
+		System.out.println("\n[Global information]");
+		System.out.println(Global.notUnique + " reads/pairs have secondary/supplement tag [multiple mappers] (" + Utils.pcFormatter.format(((float)Global.notUnique / total) * 100) + "%)");
+		System.out.println(Global.duplicates + " reads/pairs are marked as duplicates (" + Utils.pcFormatter.format(((float)Global.duplicates / total) * 100) + "%)");
 		
-		if(Parameters.use_bam_tags && foundGXTag == 0) System.err.println("[Warning] You specified the --bamtag option, but no GX tag was found in the BAM file. Is this really a gene annotated BAM?");
+		if(Parameters.is_paired) 
+		{
+			System.out.println("\n[Paired-end specific]");
+			System.out.println("In total, we retained " + (Global.countedPair + Global.countedUnique) + " pairs of reads and singletons (" + (Global.countedPair * 2 + Global.countedUnique) + " reads i.e. " + Utils.pcFormatter.format(((float)(Global.countedPair * 2 + Global.countedUnique) / total) * 100) + "% of total)");
+			
+			total = Global.countedPair + Global.countedUnique;
+			// Global.mateUnmapped == Global.countedUnique
+			//System.out.println(Global.mateUnmapped + " reads don't have aligned paired mate [singletons] (" + Utils.pcFormatter.format(((float)Global.mateUnmapped / total) * 100) + "%)");
+			// Global.properlyPaired : I don't know if it is useful here?
+			// Properly paired means that the read orientation goes F> ---gap --- < R and that the gap is roughly the expected size, 200-400 bp
+			//System.out.println(Global.properlyPaired + " reads are properly paired (" + Utils.pcFormatter.format(((float)Global.properlyPaired / total) * 100) + "%)");
+			System.out.println("\t" + Global.countedPair + " PAIRS of read (" + Global.countedPair * 2 + " reads = " + Utils.pcFormatter.format(((float)(Global.countedPair * 2) / (Global.nbReads - Global.notUnique)) * 100) + "% of retained reads)");
+			System.out.println("\t" + Global.countedUnique + " SINGLETON reads (mate is not aligned) (" + Utils.pcFormatter.format(((float)Global.mateUnmapped / (Global.nbReads - Global.notUnique)) * 100) + "% of retained reads)");
+		}
 		
-		// Create the read count matrix
-		System.out.println("Writing output file...");
-		createOutputDGE(results);
+		System.out.println("\n[Summary]");
+		System.out.println(Global.mapped + " reads/pairs pass all QCs and are included in the count table (" + Utils.pcFormatter.format(((float)Global.mapped / total) * 100) + "%)");
+		System.out.println(Global.unmapped + " reads/pairs are not mapped [Unmapped] (" + Utils.pcFormatter.format(((float)Global.unmapped / total) * 100) + "%)");
+		System.out.println(Global.ambiguous + " reads/pairs are aligned but map to multiple features [ambiguous] (" + Utils.pcFormatter.format(((float)Global.ambiguous / total) * 100) + "%)");
+		System.out.println(Global.noFeature + " reads/pairs are aligned but do not map to any feature [no-feature] (" + Utils.pcFormatter.format(((float)Global.noFeature / total) * 100) + "%)");
+		System.out.println(Global.toolowAqual + " reads/pairs have too low alignment quality [too low aQual] (" + Utils.pcFormatter.format(((float)Global.toolowAqual / total) * 100) + "%)");
+		if(Parameters.doDemultiplexing) System.out.println(Global.notDemultiplexed + " 'Aligned but not demultiplexed' reads (" + Utils.pcFormatter.format(((float)Global.notDemultiplexed / total) * 100) + "%)");
+		if(Parameters.use_bam_tags && Global.foundGXTag == 0) System.err.println("[Warning] You specified the --bamtag option, but no GX tag was found in the BAM file. Is this really a gene annotated BAM?");
+	
+		return results;
 	}
 	
-	public static void createOutputDGE(HashMap<String, ResultStruct> results)
+	private static void processSingleEndRead(SAMRecord samRecord, ResultStruct res)
 	{
-		try
-		{
-			// Create the read count and transcript count matrices
-			BufferedWriter bw_reads = new BufferedWriter(new FileWriter(Parameters.outputFolder + "counts.txt"));
-			BufferedWriter bw_reads_detailed = new BufferedWriter(new FileWriter(Parameters.outputFolder + "counts.detailed.txt"));
-			
-			// Sorted indexes
-			String[] sortedGeneKeys = Utils.sortKeys(Global.geneIndex);
-			String[] sortedBarcodeKeys = Utils.sortKeysByValues(Global.mappingBarcodeName);
-			
-			// Header
-			bw_reads.write("Gene_id"); 
-			bw_reads_detailed.write("Gene_id\tGene_name"); 
-			for(String barcode:sortedBarcodeKeys) 
-			{ 
-				String mappedBarcode = Global.mappingBarcodeName.get(barcode);
-				if(mappedBarcode != null) bw_reads.write("\t" + mappedBarcode); 
-				if(mappedBarcode == null) mappedBarcode = "Unknown_Barcode";
-				bw_reads_detailed.write("\t" + mappedBarcode); 
-			}
-			bw_reads.write("\n");  
-			bw_reads_detailed.write("\n"); 
-			
-			// Actual values
-			for(String gene:sortedGeneKeys)
+		if(samRecord.getMappingQuality() < Parameters.minAQual) { Global.toolowAqual++; res.toolowAqual++; } // To match htseq-count. I do this first
+		else
+		{	
+			if(Parameters.use_bam_tags)
 			{
-				String mappedGene = Global.mappingGeneIdGeneName.get(gene);
-				if(mappedGene == null) mappedGene = "";
-				bw_reads.write(gene);
-				bw_reads_detailed.write(gene + "\t" + mappedGene); 
-				for(String barcode:sortedBarcodeKeys) 
-				{
-					ResultStruct res = results.get(barcode);
-					bw_reads.write("\t" + res.counts[Global.geneIndex.get(gene)]);
-					bw_reads_detailed.write("\t" + res.counts[Global.geneIndex.get(gene)]);
+				String gene_id = (String)samRecord.getAttribute("GX");
+				//String gene_name = (String)samRecord.getAttribute("GN"); // Not used
+				if(gene_id == null || gene_id.equals("-")) { Global.noFeature++; res.noFeature++; }
+				else 
+				{	
+					Global.foundGXTag++;
+					Global.mapped++; res.mapped++;
+					Integer indexGene = Global.geneIndex.get(gene_id); // From GTF
+					if(indexGene == null) new ErrorMessage("ERROR: This gene " + gene_id + " is not in your GTF file. Please check again.");
+					res.counts[indexGene]++;
 				}
-				bw_reads.write("\n");
-				bw_reads_detailed.write("\n");
 			}
-			
-			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__alignment_not_unique\t__alignment_not_unique");
-			for(String barcode:sortedBarcodeKeys) 
+			else // Use positions
 			{
-				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.notUnique);
+				HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
+				if(overlappingGenes.size() == 0) { Global.noFeature++; res.noFeature++; }
+				else if(overlappingGenes.size() == 1)	
+				{
+					Global.mapped++; res.mapped++;
+					String gene = overlappingGenes.iterator().next();
+					res.counts[Global.geneIndex.get(gene)]++;
+				}
+				else { Global.ambiguous++; res.ambiguous++; }
 			}
-			bw_reads_detailed.write("\n");
-			
-			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__ambiguous\t__ambiguous");
-			for(String barcode:sortedBarcodeKeys) 
-			{
-				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.ambiguous);
-			}
-			bw_reads_detailed.write("\n");
-			
-			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__no_feature\t__no_feature");
-			for(String barcode:sortedBarcodeKeys) 
-			{
-				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.noFeature);
-			}
-			bw_reads_detailed.write("\n");
-			
-			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__not_aligned\t__not_aligned");
-			for(String barcode:sortedBarcodeKeys) 
-			{
-				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.unmapped);
-			}
-			bw_reads_detailed.write("\n");
-			
-			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__too_low_aQual\t__too_low_aQual");
-			for(String barcode:sortedBarcodeKeys) 
-			{
-				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.toolowAqual);
-			}
-			bw_reads_detailed.write("\n");
-			
-			bw_reads.close(); 
-			bw_reads_detailed.close();
 		}
-		catch(IOException ioe)
-		{
-			new ErrorMessage(ioe.getMessage());
-		}
-		System.out.println("Count matrix written in " + Parameters.outputFolder);
 	}
-
 }

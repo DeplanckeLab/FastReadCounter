@@ -146,8 +146,8 @@ public class Utils
 					System.out.println("CIGAR = " + c);
 					return new HashSet<>(); // TODO
 				case H:
-					System.out.println("CIGAR = " + c);
-					return new HashSet<>(); // TODO
+					// Hard clipping. Do nothing ? (alignment start is after any H & alignment end before any H)
+					break;
 				case I:
 					// Do nothing
 					break;
@@ -155,7 +155,7 @@ public class Utils
 					System.out.println("CIGAR = " + c);
 					return new HashSet<>(); // TODO
 				case S:
-					// Do nothing (alignment start is after any S & alignment end before any S)
+					// Soft clipping. Do nothing (alignment start is after any S & alignment end before any S)
 					break;
 				case X:
 					System.out.println("CIGAR = " + c);

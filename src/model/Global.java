@@ -16,4 +16,12 @@ public class Global
 	public static long toolowAqual = 0;
 	public static long notDemultiplexed = 0;
 	public static long nbReads = 0;
+	public static long duplicates = 0;
+	public static int foundGXTag = 0;
+	
+	//paired-end
+	public static int mateUnmapped = 0;
+	public static int properlyPaired = 0;
+	public static int countedPair = 0;
+	public static int countedUnique = 0;
 }

@@ -25,6 +25,7 @@ public class Parameters
 	public static boolean doDemultiplexing = false;
 	public static boolean keep_multiple_mapped_reads = false;
 	public static boolean use_bam_tags = false;
+	public static boolean is_paired = false;
 	
 	public static void load(String[] args) throws Exception
 	{
@@ -64,6 +65,10 @@ public class Parameters
 						default:
 							new ErrorMessage("The '-s' | '--stranded' option should be followed by one of the following parameters: [no, yes, reverse].");
 						}
+						break;
+					case "--paired":
+					case "-p":
+						is_paired = true;
 						break;
 					case "--bam":
 						i++;
@@ -177,6 +182,7 @@ public class Parameters
 			System.err.println("[Warning] VCF mode, [NOT Stranded] only.");
 			Parameters.stranded = Strand.NO;
 		}
+		System.out.println("[Parameters]");
 		if(!use_bam_tags) System.out.println("Stranded = " + Parameters.stranded);
 		else 
 		{
@@ -185,12 +191,12 @@ public class Parameters
 		}
 		System.out.println("Min aQual = " + Parameters.minAQual);
 		System.out.println("Multiple mapped reads will be " + ((keep_multiple_mapped_reads)?"KEPT":"DISCARDED"));
-		System.out.println("Demultiplexing samples = " + Parameters.doDemultiplexing);
 		if(Parameters.doDemultiplexing)
 		{
-			if(Parameters.barcodes.size() == 0) new ErrorMessage("No barcodes were found in your barcode file.");
-			System.out.println("Barcode file = " + Parameters.barcodes.size() + " barcodes of length " + Parameters.barcodeLength);
-			System.out.println("Barcode tag = " + Parameters.barcodeTag);
+			System.out.println("Samples WILL BE demultiplexed:");
+			if(Parameters.barcodes.size() == 0) new ErrorMessage("\tNo barcodes were found in your barcode file.");
+			System.out.println("\tBarcode file = " + Parameters.barcodes.size() + " barcodes of length " + Parameters.barcodeLength);
+			System.out.println("\tBarcode tag = " + Parameters.barcodeTag);
 		}
 		else 
 		{
@@ -199,6 +205,8 @@ public class Parameters
 		}
 		Parameters.barcodes.add("Unknown");
 		Global.mappingBarcodeName.put("Unknown", "Unknown");
+		
+		System.out.println("Samples will be treated as " + (Parameters.is_paired?"PAIRED-END":"SINGLE-END"));
 		
 		if(outputFolder == null)
 		{
@@ -224,7 +232,7 @@ public class Parameters
 		System.out.println("\t--bamtag \t[Optional (with --gtf)] BAM file is already mapped to genes (STARsolo) and/or tagged with GN/GX tags, use these tags to produce count matrix instead of the positions in the GTF file.");
 		System.out.println("\t--barcodeFile %s \t[Optional] Path of Barcode file for demultiplexing the BAM file using the barcode tag (default tag is 'CB').");
 		System.out.println("\t--barcodeTag %s \t[Optional] Changing the barcode tag to check for the --barcodeFile option (default tag is 'CB').");
-		System.out.println("\t--multiple_mapped %s \tKeep multiple mapped read [default = discard them]");
+		System.out.println("\t--multiple-mapped %s \tKeep multiple mapped read [default = discard them]");
 		System.out.println("\t-s %s \t\t[no, yes, reverse] Do you want to count only reads falling on same strand than feature? [default = no].");
 		System.out.println("\t-q %i \t\tMinimum quality required for a read to be counted [default = 10].");
 		System.out.println("\t-o %s \t\tOutput folder [default = folder of BAM file]");
