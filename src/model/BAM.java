@@ -17,10 +17,7 @@ public class BAM
 	 * Using Picard to read the reads from the BAM file created by the alignment tool
 	 */
 	public static HashMap<String, ResultStruct> readBAM()
-	{
-		// TODO Handle paired reads? Count once each read (current) or count pairs and discard single reads?
-		// TODO Handle UMI? Default in UB tag (corrected) UB:Z:GGTGCTTGTTACA or UR tag (non corrected) UR:Z:GAGTCGCGCTCAG
-		
+	{	
 		// Init result struct
 		HashMap<String, ResultStruct> results = new HashMap<String, ResultStruct>();
 		for(String barcode:Parameters.barcodes) results.put(barcode, new ResultStruct(Global.geneIndex.size()));

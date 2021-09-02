@@ -15,6 +15,9 @@ import tools.Utils;
  */
 public class FastReadCounter
 {	
+	// TODO Handle UMI? Default in UB tag (corrected) UB:Z:GGTGCTTGTTACA or UR tag (non corrected) UR:Z:GAGTCGCGCTCAG
+	// TODO Add the possibility to process multiple bams at once
+	
 	public static void main(String[] args) throws Exception
 	{
 		if(args.length < 1) Parameters.printHelp();
