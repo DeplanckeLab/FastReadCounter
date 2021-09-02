@@ -118,9 +118,8 @@ public class BAM
 										}
 										else // Use positions
 										{
-											
-											HashSet<String> overlappingGenes_1 = Utils.getOverlappingFeatures(read1.chr, read1.startV, read1.endV, read1.cigar, read1.negativeStrandFlag);
-											HashSet<String> overlappingGenes_2 = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
+											HashSet<String> overlappingGenes_1 = Utils.getOverlappingFeatures(read1.chr, read1.startV, read1.endV, read1.cigar, read1.negativeStrandFlag, read1.firstOfPair);
+											HashSet<String> overlappingGenes_2 = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getFirstOfPairFlag());
 											
 											if(overlappingGenes_1.size() == 0 && overlappingGenes_2.size() == 0) { Global.noFeature++; res.noFeature++; }
 											else
@@ -139,7 +138,7 @@ public class BAM
 								}
 								else 
 								{
-									pairedBuffer.put(name, new Read(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getMappingQuality(), (String)samRecord.getAttribute("GX")));
+									pairedBuffer.put(name, new Read(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getMappingQuality(), (String)samRecord.getAttribute("GX"), samRecord.getFirstOfPairFlag()));
 								}
 							}
 						}
@@ -214,7 +213,7 @@ public class BAM
 			}
 			else // Use positions
 			{
-				HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
+				HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getFirstOfPairFlag());
 				if(overlappingGenes.size() == 0) { Global.noFeature++; res.noFeature++; }
 				else if(overlappingGenes.size() == 1)	
 				{

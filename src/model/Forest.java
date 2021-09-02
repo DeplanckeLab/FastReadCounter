@@ -24,7 +24,7 @@ public class Forest
 		forest.put(chr, tree);
 	}
 	
-	public static HashSet<String> findOverlappingFeatures(String chr, int start, int end, boolean readNegativeStrandFlag)
+	public static HashSet<String> findOverlappingFeatures(String chr, int start, int end, boolean readNegativeStrandFlag, boolean firstInPair)
 	{
 		HashSet<String> result = new HashSet<>();
 		IntervalTree itree = forest.get(chr);
@@ -35,8 +35,30 @@ public class Forest
 			{
 				IntervalLabelled g = (IntervalLabelled)i;
 				if(Parameters.stranded == Strand.NO) result.add(g.featureName);
-				else if(Parameters.stranded == Strand.REVERSE && g.readNegativeStrandFlag == readNegativeStrandFlag) result.add(g.featureName);
-				else if(Parameters.stranded == Strand.YES && g.readNegativeStrandFlag != readNegativeStrandFlag) result.add(g.featureName);
+				else if(Parameters.stranded == Strand.REVERSE)
+				{
+					if(!Parameters.is_paired)
+					{
+						if(g.readNegativeStrandFlag == readNegativeStrandFlag) result.add(g.featureName);
+					}
+					else
+					{
+						if(firstInPair && g.readNegativeStrandFlag == readNegativeStrandFlag) result.add(g.featureName);
+						if(!firstInPair && g.readNegativeStrandFlag != readNegativeStrandFlag) result.add(g.featureName);
+					}
+				}
+				else if(Parameters.stranded == Strand.YES)
+				{
+					if(!Parameters.is_paired)
+					{
+						if(g.readNegativeStrandFlag != readNegativeStrandFlag) result.add(g.featureName);
+					}
+					else
+					{
+						if(firstInPair && g.readNegativeStrandFlag != readNegativeStrandFlag) result.add(g.featureName);
+						if(!firstInPair && g.readNegativeStrandFlag == readNegativeStrandFlag) result.add(g.featureName);
+					}
+				}
 			}
 		}
 		return result;

@@ -73,11 +73,11 @@ public class ResultStruct
 			}
 			
 			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__alignment_not_unique\t__alignment_not_unique");
+			bw_reads_detailed.write("__no_feature\t__no_feature");
 			for(String barcode:sortedBarcodeKeys) 
 			{
 				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.notUnique);
+				bw_reads_detailed.write("\t" + res.noFeature);
 			}
 			bw_reads_detailed.write("\n");
 			
@@ -91,11 +91,11 @@ public class ResultStruct
 			bw_reads_detailed.write("\n");
 			
 			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__no_feature\t__no_feature");
+			bw_reads_detailed.write("__too_low_aQual\t__too_low_aQual");
 			for(String barcode:sortedBarcodeKeys) 
 			{
 				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.noFeature);
+				bw_reads_detailed.write("\t" + res.toolowAqual);
 			}
 			bw_reads_detailed.write("\n");
 			
@@ -109,14 +109,14 @@ public class ResultStruct
 			bw_reads_detailed.write("\n");
 			
 			// Write complementing values (same as HTSeq-count)
-			bw_reads_detailed.write("__too_low_aQual\t__too_low_aQual");
+			bw_reads_detailed.write("__alignment_not_unique\t__alignment_not_unique");
 			for(String barcode:sortedBarcodeKeys) 
 			{
 				ResultStruct res = results.get(barcode);
-				bw_reads_detailed.write("\t" + res.toolowAqual);
+				bw_reads_detailed.write("\t" + res.notUnique);
 			}
 			bw_reads_detailed.write("\n");
-			
+					
 			bw_reads.close(); 
 			bw_reads_detailed.close();
 		}

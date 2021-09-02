@@ -123,7 +123,7 @@ public class Utils
 		return sav;
 	}
 	
-	public static HashSet<String> getOverlappingFeatures(String chr, int start, int end, Cigar c, boolean readNegativeStrandFlag)
+	public static HashSet<String> getOverlappingFeatures(String chr, int start, int end, Cigar c, boolean readNegativeStrandFlag, boolean firstOfPair)
 	{
 		HashSet<String> res = new HashSet<>();
 		List<CigarElement> l = c.getCigarElements();
@@ -133,7 +133,7 @@ public class Utils
 			switch(cigar.getOperator())
 			{
 				case M:
-					res.addAll(Forest.findOverlappingFeatures(chr, s, s + cigar.getLength() - 1, readNegativeStrandFlag)); // -1 Because the last letter is at the index before
+					res.addAll(Forest.findOverlappingFeatures(chr, s, s + cigar.getLength() - 1, readNegativeStrandFlag, firstOfPair)); // -1 Because the last letter is at the index before
 					s += cigar.getLength();
 					break;
 				case N:
