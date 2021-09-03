@@ -1,6 +1,6 @@
 ![](https://img.shields.io/badge/build-passing-green.svg)
 ![](https://img.shields.io/badge/version-1.0.0-blue.svg)
-![](https://img.shields.io/badge/picard-2.9.0-blue.svg)
+![](https://img.shields.io/badge/htsjdk-2.24.1-blue.svg)
 ![](https://img.shields.io/badge/java-1.8-red.svg)
 
 # FastReadCounter
@@ -23,8 +23,8 @@ java -version
 If the output looks something like java version "1.8.x" or above, you are good to go. 
 If not, you may need to update your version; see the [Oracle Java website](http://www.oracle.com/technetwork/java/javase/downloads/) to download the latest JRE (for users) or JDK (for developers).
 
-### Picard
-The software relies on [Picard Tools](http://broadinstitute.github.io/picard/), but the Picard JAR is already embedded in the released JAR, so no need to install it yourself.
+### htsjdk Java library
+The software relies on the [htsjdk library](https://github.com/samtools/htsjdk) for reading SAM/BAM files, but the JAR is already embedded in the released JAR, so no need to install it yourself.
 
 ## How to run
 To check that FastReadCounter is working properly, run the following command:
@@ -48,6 +48,7 @@ Options:
 ## Comparison with existing tools
 FastReadCounter can be compared with a variety of tools that all perform the same task on only one file format (bed or gtf, or vcf) such as:
 * **htseq-count** for counting reads in GTF file. FastReadCounter has stricly identical output than the union parameter in htseq-count. It runs ~20-100 times faster.
+* **featureCounts** for counting reads in GTF file. FastReadCounter has identical output and runs only slightly slower. However FastReadCounter has more options and can read multiplexed BAM files (single-cell RNA-seq or multiplexed bulk RNA-seq experiments).
 * **homer** for counting reads in BED files. FastReadCounter has very similar output than HOMER. It does not require to transform the bam into a tag folder.
 * **freebayes** for counting reads in VCF files with the --variant-input option. However freebayes current version fails with this option, and only calculate chr1.
 
