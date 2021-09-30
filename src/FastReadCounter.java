@@ -15,8 +15,10 @@ import tools.Utils;
  */
 public class FastReadCounter
 {	
-	// TODO Handle UMI? Default in UB tag (corrected) UB:Z:GGTGCTTGTTACA or UR tag (non corrected) UR:Z:GAGTCGCGCTCAG
+	// TODO If BAM is sorted, reduce RAM for UMI, by processing each gene separately
+	// TODO For multiple reads. If the same read maps multiple times to the same gene, count it only once.
 	// TODO Add the possibility to process multiple bams at once
+	// TODO Add parallelization
 	
 	public static void main(String[] args) throws Exception
 	{
@@ -34,7 +36,7 @@ public class FastReadCounter
 			if(Parameters.inputGTFFile != null) GTF.readGTF();
 			else if(Parameters.inputVCFFile != null) VCF.readVCF();
 			else BED.readBED(); // At least one is not null
-			System.out.println("GTF reading DONE [" + Utils.toReadableTime(System.currentTimeMillis() - time) + "]");
+			System.out.println("Region reading DONE [" + Utils.toReadableTime(System.currentTimeMillis() - time) + "]");
 						
 			// Reading reads in BAM
 			time = System.currentTimeMillis();

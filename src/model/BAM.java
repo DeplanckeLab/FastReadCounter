@@ -9,6 +9,7 @@ import htsjdk.samtools.SAMRecordIterator;
 import htsjdk.samtools.SamReader;
 import htsjdk.samtools.SamReaderFactory;
 import htsjdk.samtools.ValidationStringency;
+import tools.MemoryHandler;
 import tools.Utils;
 
 public class BAM 
@@ -18,6 +19,8 @@ public class BAM
 	 */
 	public static HashMap<String, ResultStruct> readBAM()
 	{	
+		boolean heapMsg = false;
+		
 		// Init result struct
 		HashMap<String, ResultStruct> results = new HashMap<String, ResultStruct>();
 		for(String barcode:Parameters.barcodes) results.put(barcode, new ResultStruct(Global.geneIndex.size()));
@@ -28,6 +31,7 @@ public class BAM
 		
 		// Start reading BAM file
 		Long start = System.currentTimeMillis();
+		Long previous = start;
 		System.out.println("\nReading the reads from the BAM file provided: " + Parameters.inputBAMFile);
 		try
 		{
@@ -98,6 +102,12 @@ public class BAM
 										{
 											String gene_id_1 = read1.gene;
 											String gene_id_2 = (String)samRecord.getAttribute("GX");
+											String umi = null;
+											if(Parameters.umi_dedup != UMIDedup.NONE)
+											{
+												umi = (String)samRecord.getAttribute("UB");
+												if(umi == null) umi = (String)samRecord.getAttribute("UR"); // Non corrected
+											}
 											if(gene_id_1 != null && gene_id_1.equals("-")) gene_id_1 = null;
 											if(gene_id_2 != null && gene_id_2.equals("-")) gene_id_2 = null;
 											if(gene_id_1 != null && gene_id_2 != null && !gene_id_1.equals(gene_id_2)) { Global.foundGXTag++; Global.ambiguous++; res.ambiguous++; }
@@ -111,6 +121,7 @@ public class BAM
 												Integer indexGene = Global.geneIndex.get(gene_id); // From GTF
 												if(indexGene == null) new ErrorMessage("ERROR: This gene " + gene_id + " is not in your GTF file. Please check again.");
 												res.counts[indexGene]++;
+												if(umi != null) { Global.foundUTag++; res.addUMI(indexGene, umi); }
 											}
 										}
 										else // Use positions
@@ -135,7 +146,13 @@ public class BAM
 								}
 								else 
 								{
-									pairedBuffer.put(name, new Read(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getMappingQuality(), (String)samRecord.getAttribute("GX"), samRecord.getFirstOfPairFlag()));
+									String umi = null;
+									if(Parameters.umi_dedup != UMIDedup.NONE)
+									{
+										umi = (String)samRecord.getAttribute("UB");
+										if(umi == null) umi = (String)samRecord.getAttribute("UR"); // Non corrected
+									}
+									pairedBuffer.put(name, new Read(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getMappingQuality(), (String)samRecord.getAttribute("GX"), umi, samRecord.getFirstOfPairFlag()));
 								}
 							}
 						}
@@ -147,7 +164,17 @@ public class BAM
 					}
 				}
 				
-				if(Global.nbReads % 10000000 == 0) System.out.println(Global.nbReads + " reads were processed from BAM file [" + Utils.toReadableTime(System.currentTimeMillis() - start) + "]");
+				if(Global.nbReads % 10000000 == 0) {System.out.println(Global.nbReads + " reads were processed from BAM file [" + Utils.toReadableTime(System.currentTimeMillis() - start) + "], Diff = " + Utils.toReadableTime(System.currentTimeMillis() - previous)); previous = System.currentTimeMillis();}
+				if(Global.nbReads % 100000 == 0)
+				{
+					if(MemoryHandler.isHeapFull() && !heapMsg)
+					{
+						System.err.println("[Warning] Java heap space is almost full! Current used Heap size = " + Utils.pcFormatter.format(MemoryHandler.getCurrentHeapSizePercent()) + "% of Total " + MemoryHandler.toReadableSize(MemoryHandler.maxHeap));
+						System.err.println("[Warning] Program may crash unexpectedly or slow down drastically. Please consider rerunning the tool increasing the heap space. For e.g. to use 16Gb of heap space, use the following code:");
+						System.err.println("[Warning]\tjava -Xmx16g -jar FastReadCounter.jar ....");
+						heapMsg = true; // Avoid spamming the user...
+					}
+				}
 			}
 			samReader.close();
 		}
@@ -185,6 +212,7 @@ public class BAM
 		System.out.println(Global.toolowAqual + " reads/pairs have too low alignment quality [too low aQual] (" + Utils.pcFormatter.format(((float)Global.toolowAqual / total) * 100) + "%)");
 		if(Parameters.doDemultiplexing) System.out.println(Global.notDemultiplexed + " 'Aligned but not demultiplexed' reads (" + Utils.pcFormatter.format(((float)Global.notDemultiplexed / total) * 100) + "%)");
 		if(Parameters.use_bam_tags && Global.foundGXTag == 0) System.err.println("[Warning] You specified the --bamtag option, but no GX tag was found in the BAM file. Is this really a gene annotated BAM?");
+		if(Parameters.use_bam_tags && Global.foundUTag == 0) System.err.println("[Warning] You specified the --bamtag option, but no UB or UR tag was found in the BAM file. The UMI count matrix will NOT be generated.");
 	
 		return results;
 	}
@@ -198,6 +226,12 @@ public class BAM
 			{
 				String gene_id = (String)samRecord.getAttribute("GX");
 				//String gene_name = (String)samRecord.getAttribute("GN"); // Not used
+				String umi = null;
+				if(Parameters.umi_dedup != UMIDedup.NONE)
+				{
+					umi = (String)samRecord.getAttribute("UB");
+					if(umi == null) umi = (String)samRecord.getAttribute("UR"); // Non corrected
+				}
 				if(gene_id == null || gene_id.equals("-")) { Global.noFeature++; res.noFeature++; }
 				else 
 				{	
@@ -206,11 +240,12 @@ public class BAM
 					Integer indexGene = Global.geneIndex.get(gene_id); // From GTF
 					if(indexGene == null) new ErrorMessage("ERROR: This gene " + gene_id + " is not in your GTF file. Please check again.");
 					res.counts[indexGene]++;
+					if(umi != null) { Global.foundUTag++; res.addUMI(indexGene, umi); }
 				}
 			}
 			else // Use positions
 			{
-				HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag(), samRecord.getFirstOfPairFlag());
+				HashSet<String> overlappingGenes = Utils.getOverlappingFeatures(samRecord.getReferenceName(), samRecord.getAlignmentStart(), samRecord.getAlignmentEnd(), samRecord.getCigar(), samRecord.getReadNegativeStrandFlag());
 				if(overlappingGenes.size() == 0) { Global.noFeature++; res.noFeature++; }
 				else if(overlappingGenes.size() == 1)	
 				{

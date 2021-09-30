@@ -26,6 +26,7 @@ import model.Parameters;
 public class Utils 
 {
 	public static DecimalFormat pcFormatter = new DecimalFormat("##.##");
+	public static Long maxHeap = null;
 	/**
 	 * Read VCF different types of VCF file
 	 * @param VCF input file
@@ -50,7 +51,7 @@ public class Utils
 		}
 		return null;
 	}
-	
+
 	/**
 	 * 
 	 * @param barcodeFile Required to map the barcode with the sample name
@@ -121,6 +122,12 @@ public class Utils
 		}
 		if(sav.equals("")) return null;
 		return sav;
+	}
+	
+	public static HashSet<String> getOverlappingFeatures(String chr, int start, int end, Cigar c, boolean readNegativeStrandFlag)
+	{
+		if(Parameters.is_paired) new ErrorMessage("You should use this function with the 'firstOfPair' argument with paired-end data");
+		return getOverlappingFeatures(chr, start, end, c, readNegativeStrandFlag, false); // We put false, it has no impact anyways
 	}
 	
 	public static HashSet<String> getOverlappingFeatures(String chr, int start, int end, Cigar c, boolean readNegativeStrandFlag, boolean firstOfPair)

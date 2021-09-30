@@ -24,7 +24,7 @@ public class Read implements Comparable<Read>
 	public int mapQ;
 	public boolean firstOfPair = false;
 	
-	public Read(String chr, int start, int end, Cigar c, boolean strand, int mapQ, String gene, boolean firstOfPair) 
+	public Read(String chr, int start, int end, Cigar c, boolean strand, int mapQ, String gene, String UMI, boolean firstOfPair) 
 	{
 		this.chr = chr;
 		this.startV = start;
@@ -33,6 +33,7 @@ public class Read implements Comparable<Read>
 		this.negativeStrandFlag = strand;
 		this.mapQ = mapQ;
 		this.gene = gene;
+		this.UMI = UMI;
 		this.firstOfPair = firstOfPair;
 	}
 	

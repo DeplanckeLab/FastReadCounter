@@ -6,6 +6,7 @@ import java.util.HashSet;
 import tools.Utils;
 
 enum Strand{NO, YES, REVERSE};
+enum UMIDedup{NONE, EXACT};
 
 public class Parameters 
 {
@@ -26,6 +27,7 @@ public class Parameters
 	public static boolean keep_multiple_mapped_reads = false;
 	public static boolean use_bam_tags = false;
 	public static boolean is_paired = false;
+	public static UMIDedup umi_dedup = UMIDedup.NONE;
 	
 	public static void load(String[] args) throws Exception
 	{
@@ -100,6 +102,20 @@ public class Parameters
 						break;
 					case "--bamtag":
 						use_bam_tags = true;
+						break;
+					case "--umi-dedup":
+						i++;
+						switch(args[i])
+						{
+						case "none":
+							Parameters.umi_dedup =  UMIDedup.NONE;
+							break;
+						case "exact":
+							Parameters.umi_dedup =  UMIDedup.EXACT;
+							break;
+						default:
+							new ErrorMessage("The '--umi-dedup' option should be followed by one of the following parameters: [none, exact].");
+						}
 						break;
 					case "--bed":
 						i++;
@@ -183,12 +199,19 @@ public class Parameters
 			Parameters.stranded = Strand.NO;
 		}
 		System.out.println("[Parameters]");
-		if(!use_bam_tags) System.out.println("Stranded = " + Parameters.stranded);
+		if(!use_bam_tags) 
+		{
+			if(Parameters.umi_dedup !=  UMIDedup.NONE) new ErrorMessage("You cannot specify --umi-dedup option without the --bamtag option, i.e. FRC can only count UMIs that are already annotated in the BAM file.");
+			System.out.println("Stranded = " + Parameters.stranded);
+		}
 		else 
 		{
 			if(inputGTFFile == null) new ErrorMessage("The option --bamtag can only be used with option --gtf");
 			System.out.println("Using BAM tags GN/GX for computing count matrix.");
+			if(Parameters.umi_dedup !=  UMIDedup.NONE) System.out.println("UMI count matrix WILL BE generated using the " + Parameters.umi_dedup + " deduplication scheme");
+			else System.out.println("UMI count matrix WILL NOT BE generated (use '--umi-dedup' option to do so)");
 		}
+		
 		System.out.println("Min aQual = " + Parameters.minAQual);
 		System.out.println("Multiple mapped reads will be " + ((keep_multiple_mapped_reads)?"KEPT":"DISCARDED"));
 		if(Parameters.doDemultiplexing)
@@ -207,7 +230,7 @@ public class Parameters
 		Global.mappingBarcodeName.put("Unknown", "Unknown");
 		
 		System.out.println("Samples will be treated as " + (Parameters.is_paired?"PAIRED-END":"SINGLE-END"));
-		
+
 		if(outputFolder == null)
 		{
 			String path = inputBAMFile.getAbsolutePath();
@@ -225,16 +248,17 @@ public class Parameters
 	public static void printHelp()
 	{
 		System.out.println("FastReadCounter (FRC) " + Parameters.currentVersion + "\n\nOptions:");
-		System.out.println("\t--bam %s \t[Required] Path of BAM file [do not need to be sorted or indexed].");
-		System.out.println("\t--gtf %s \t[Required (or --bed or --vcf or --bamtag)] Path of GTF file.");
-		System.out.println("\t--bed %s \t[Required (or --gtf or --vcf or --bamtag)] Path of BED file.");
-		System.out.println("\t--vcf %s \t[Required (or --gtf or --bed or --bamtag)] Path of VCF file.");
-		System.out.println("\t--bamtag \t[Optional (with --gtf)] BAM file is already mapped to genes (STARsolo) and/or tagged with GN/GX tags, use these tags to produce count matrix instead of the positions in the GTF file.");
-		System.out.println("\t--barcodeFile %s \t[Optional] Path of Barcode file for demultiplexing the BAM file using the barcode tag (default tag is 'CB').");
-		System.out.println("\t--barcodeTag %s \t[Optional] Changing the barcode tag to check for the --barcodeFile option (default tag is 'CB').");
+		System.out.println("\t--bam %s \t[Required] Path of BAM file (do not need to be sorted or indexed)");
+		System.out.println("\t--gtf %s \t[Required (or --bed or --vcf or --bamtag)] Path of GTF file");
+		System.out.println("\t--bed %s \t[Required (or --gtf or --vcf or --bamtag)] Path of BED file");
+		System.out.println("\t--vcf %s \t[Required (or --gtf or --bed or --bamtag)] Path of VCF file");
+		System.out.println("\t--bamtag \t[Optional (with --gtf)] BAM file is already mapped to genes (STARsolo) and/or tagged with GN/GX tags, use these tags to produce count matrix instead of the positions in the GTF file");
+		System.out.println("\t--barcodeFile %s \t[Optional] Path of Barcode file for demultiplexing the BAM file using the barcode tag (default tag is 'CB')");
+		System.out.println("\t--barcodeTag %s \t[Optional] Changing the barcode tag to check for the --barcodeFile option (default tag is 'CB')");
 		System.out.println("\t--multiple-mapped %s \tKeep multiple mapped read [default = discard them]");
-		System.out.println("\t-s %s \t\t[no, yes, reverse] Do you want to count only reads falling on same strand than feature? [default = no].");
-		System.out.println("\t-q %i \t\tMinimum quality required for a read to be counted [default = 10].");
-		System.out.println("\t-o %s \t\tOutput folder [default = folder of BAM file]");
+		System.out.println("\t--umi-dedup %s \t[none, exact] How to dedup the UMIs (only if using --bamtag option, default = none)");
+		System.out.println("\t-s %s \t\t[no, yes, reverse] Do you want to count only reads falling on same strand than feature? (default = no)");
+		System.out.println("\t-q %i \t\tMinimum quality required for a read to be counted (default = 10)");
+		System.out.println("\t-o %s \t\tOutput folder (default = folder of BAM file)");
 	}
 }

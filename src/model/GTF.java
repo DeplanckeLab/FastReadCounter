@@ -28,36 +28,23 @@ public class GTF
 		{
 	    	if(!line.startsWith("#"))
     		{
-				String[] tokens = line.split("\t");
-				// Parse Line
-				String[] params = tokens[8].split(";");
-				long start = Long.parseLong(tokens[3]);
-				long end = Long.parseLong(tokens[4]);
-				String gene_name = null;
-				String gene_id = null;
-				String chr = tokens[0];
-				String type = tokens[2];
-				boolean strand = tokens[6].equals("+");
-				for(String param:params) 
+				GTFLine infos = parseGTFLine(line);
+				if(infos != null)
 				{
-					String[] values = param.trim().split("\\s+");
-					values[1] = values[1].replaceAll("\"", "");
-					if(values[0].equals("gene_name")) gene_name = values[1];
-					else if(values[0].equals("gene_id")) gene_id = values[1];
-				}
-				if(gene_name == null) gene_name = gene_id;
-				// Which type is it?
-				if(type.equals("exon")) 
-				{
-					nbExons++;
-					if(!Parameters.use_bam_tags) Forest.addToTree(chr, new IntervalLabelled((int)start, (int)end, gene_id, strand));
-					if(uniqueGeneId.add(gene_id)) uniqueGeneName.add(gene_name);
-				}
-				else if(type.equals("gene"))
-				{
-					Global.geneIndex.put(gene_id, nbGenes);
-					Global.mappingGeneIdGeneName.put(gene_id, gene_name);
-					nbGenes++;
+		    		if(infos.gene_name == null) infos.gene_name = infos.gene_id;
+					// Which type is it?
+					if(infos.type.equals("exon")) 
+					{
+						nbExons++;
+						if(!Parameters.use_bam_tags) Forest.addToTree(infos.chr, new IntervalLabelled((int)infos.start, (int)infos.end, infos.gene_id, infos.strand));
+						if(uniqueGeneId.add(infos.gene_id)) uniqueGeneName.add(infos.gene_name);
+					}
+					else if(infos.type.equals("gene"))
+					{
+						Global.geneIndex.put(infos.gene_id, nbGenes);
+						Global.mappingGeneIdGeneName.put(infos.gene_id, infos.gene_name);
+						nbGenes++;
+					}
 				}
 			}
 			line = br.readLine();
@@ -82,6 +69,122 @@ public class GTF
 		}
 	}
 	
+	/**
+	 * Fastest parsing of a GTF line
+	 * @param line
+	 * @return
+	 */
+	private static GTFLine parseGTFLine(String line)
+	{
+		GTFLine res = new GTFLine();
+		int pos = 0, end = 0;
+		char c;
+		
+		// Chromosome
+		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		res.chr = line.substring(pos, end);
+		end++; pos = end;
+		
+		// Skip source
+		while((c = line.charAt(end)) != '\t') end++;
+		end++; pos = end;
+		
+		// Type
+		while((c = line.charAt(end)) != '\t') end++;
+		res.type = line.substring(pos, end);
+		if(!res.type.equals("exon") && !res.type.equals("gene")) return null;
+		end++; pos = end;
+		
+		// Start
+		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		res.start = Long.parseLong(line.substring(pos, end));
+		end++; pos = end;
+
+		// End
+		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		res.end = Long.parseLong(line.substring(pos, end));
+		end++; pos = end;
+		
+		// Ignore
+		while((c = line.charAt(end)) != '\t') end++;
+		end++; pos = end;
+		
+		// Strand
+		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		res.strand = line.substring(pos, end).equals("+") ;
+		end++; pos = end;
+		
+		// Ignore
+		while((c = line.charAt(end)) != '\t') end++;
+		end++; pos = end;
+		
+		// Info
+		int found = 0;
+		// I don't know which one gene_id / gene_name comes first, so using indexOf() will run twice the sequence from the start 
+		for(int i = pos; i < line.length(); i++) // So ugly... But should be optimized.... but sorry for that...
+		{
+			if(found == 2) break;
+			if(line.charAt(i) == 'g')
+			{
+				i++;
+				if(line.charAt(i) == 'e')
+				{
+					i++;
+					if(line.charAt(i) == 'n')
+					{
+						i++;
+						if(line.charAt(i) == 'e')
+						{
+							i++;
+							if(line.charAt(i) == '_')
+							{
+								i++;
+								if(line.charAt(i) == 'i')
+								{
+									i++;
+									if(line.charAt(i) == 'd')
+									{
+										i++;				
+										c = line.charAt(i);
+										while(c == ' ' || c == '\"') { i++; c = line.charAt(i);}
+										pos = i;
+										while(c != ' ' && c != '\"') { i++; c = line.charAt(i); }
+										res.gene_id = line.substring(pos, i);
+										found++;
+									}
+								}
+								else if(line.charAt(i) == 'n')
+								{
+									i++;
+									if(line.charAt(i) == 'a')
+									{
+										i++;
+										if(line.charAt(i) == 'm')
+										{
+											i++;
+											if(line.charAt(i) == 'e')
+											{
+												i++;				
+												c = line.charAt(i);
+												while(c == ' ' || c == '\"') { i++; c = line.charAt(i);}
+												pos = i;
+												while(c != ' ' && c != '\"') { i++; c = line.charAt(i); }
+												res.gene_name = line.substring(pos, i);
+												found++;
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		return res;
+	}
+	
 	private static BufferedReader openGTF(File gtf) throws Exception
 	{
 		if(gtf.getAbsolutePath().endsWith(".gtf"))
@@ -100,4 +203,15 @@ public class GTF
 		}
 		return null;
 	}
+}
+
+class GTFLine
+{
+	long start;
+	long end;
+	String chr;
+	String type;
+	boolean strand;
+	String gene_id;
+	String gene_name;
 }

@@ -18,6 +18,7 @@ public class Global
 	public static long nbReads = 0;
 	public static long duplicates = 0;
 	public static int foundGXTag = 0;
+	public static int foundUTag = 0;
 	
 	//paired-end
 	public static int mateUnmapped = 0;

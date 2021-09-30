@@ -19,17 +19,13 @@ public class BED
 		String line = br.readLine();
 		int l = 1;
 		while(line.startsWith("browser") || line.startsWith("track")) { line = br.readLine(); l++;} // Skip these
-		Forest.init();
+		if(!Parameters.use_bam_tags) Forest.init();
 		int nbFeatures = 0;
 		while(line != null)
 		{
 			String[] tokens = line.split("\t");
-			if(tokens.length < 3)
-			{
-				System.err.println("BED entry should contain at least 3 values at l." + l);
-				System.exit(-1);
-			}
-			
+			if(tokens.length < 3) new ErrorMessage("BED entry should contain at least 3 values at l." + l);
+
 			// Parse Line
 			String chr = tokens[0];
 			long start = Long.parseLong(tokens[1]);
@@ -41,12 +37,13 @@ public class BED
 			Integer index = Global.geneIndex.get(feature_id);
 			if(index == null)
 			{
-				Forest.addToTree(chr, new IntervalLabelled((int)start, (int)end, feature_id, strand));
+				// Here we use start+1 because BED files are 0-indexed
+				if(!Parameters.use_bam_tags) Forest.addToTree(chr, new IntervalLabelled((int)(start + 1), (int)end, feature_id, strand));
 				Global.geneIndex.put(feature_id, nbFeatures);
 				Global.mappingGeneIdGeneName.put(feature_id, feature_name);
 				nbFeatures++;
 			}
-			else System.out.println("l. " + l + ": " + feature_id + " already appeared in your BED file. All extra occurrences are ignored.");
+			else System.err.println("l. " + l + ": " + feature_id + " already appeared in your BED file. All extra occurrences are ignored.");
 			
 			line = br.readLine(); l++;
 		}
@@ -54,10 +51,7 @@ public class BED
 		
 		System.out.println("In total " + nbFeatures + " annotations/features are found in the BED file.");
 		
-		if(nbFeatures == 0) {
-			System.err.println("We couldn't parse the BED file. Please report this problem if the BED is in standard format.");
-			System.exit(-1);
-		}
+		if(nbFeatures == 0) new ErrorMessage("We couldn't parse the BED file. Please report this problem if the BED is in standard format.");
 	}
 	
 	private static BufferedReader openBED(File bed) throws Exception
