@@ -49,7 +49,8 @@ Options:
 FastReadCounter can be compared with a variety of tools that all perform the same task on only one file format (bed or gtf, or vcf) such as:
 * **htseq-count** for counting reads in GTF file. FastReadCounter has stricly identical output than the union parameter in htseq-count. It runs ~20-100 times faster.
 * **featureCounts** for counting reads in GTF file. FastReadCounter has identical output and runs only slightly slower. However FastReadCounter can read more file formats (BED, VCF) and can read multiplexed BAM files (single-cell RNA-seq or multiplexed bulk RNA-seq experiments).
-* **homer** for counting reads in BED files. FastReadCounter has very similar output than HOMER. It does not require to transform the bam into a tag folder.
+* **bedtools** for counting reads in BED files (multicov tool). FastReadCounter has very similar output than HOMER. It does not require to transform the bam into a tag folder.
+* **homer** for counting reads in BED files (annotatePeaks.pl tool). FastReadCounter has very similar output than HOMER. It does not require to transform the bam into a tag folder.
 * **freebayes** for counting reads in VCF files with the --variant-input option. However freebayes current version fails with this option, and only calculate chr1.
 
 ## Directory content
