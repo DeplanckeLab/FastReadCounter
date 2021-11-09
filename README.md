@@ -36,10 +36,10 @@ As shown in the output of this command, FastReadCounter has the following option
 
 ```
 Options:
--bam %s         [Required] Path of BAM file [do not need to be sorted or indexed].
--gtf %s         [Required (or -bed or -vcf)]Path of GTF file.
--bed %s         [Required (or -gtf or -vcf)]Path of BED file.
--vcf %s         [Required (or -gtf or -bed)]Path of VCF file.
+--bam %s         [Required] Path of BAM file [do not need to be sorted or indexed].
+--gtf %s         [Required (or -bed or -vcf)]Path of GTF file.
+--bed %s         [Required (or -gtf or -vcf)]Path of BED file.
+--vcf %s         [Required (or -gtf or -bed)]Path of VCF file.
 -s %s           Do you want to count only reads falling on same strand than feature? [no, yes, reverse] [default = no].
 -q %i           Minimum quality required for a read to be counted [default = 10].
 -o %s           Output folder [default = folder of BAM file]
