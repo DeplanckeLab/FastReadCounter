@@ -1,12 +1,12 @@
 import java.util.HashMap;
 
-import model.BAM;
-import model.BED;
-import model.GTF;
-import model.Parameters;
-import model.ResultStruct;
-import model.VCF;
-import tools.Utils;
+import com.frc.bed.BED;
+import com.frc.exec.JobDispatcher;
+import com.frc.gtf.GTF;
+import com.frc.parameters.Parameters;
+import com.frc.parameters.ResultStruct;
+import com.frc.vcf.VCF;
+import com.tools.Utils;
 
 /**
  * @author Vincent Gardeux
@@ -15,10 +15,13 @@ import tools.Utils;
  */
 public class FastReadCounter
 {	
-	// TODO If BAM is sorted, reduce RAM for UMI, by processing each gene separately
-	// TODO For multiple reads. If the same read maps multiple times to the same gene, count it only once.
 	// TODO Add the possibility to process multiple bams at once
-	// TODO Add parallelization
+	// TODO Add parallelization (currently, bug, don't generate the exact same output, problem in sync?)
+	// TODO Don't require a GTF file for --bamtag option
+	// TODO Remove "Unkown" column when not detailed => Careful when only one sample (it's called Unkown)
+	// TODO Add prefix for output, instead of folder
+	// TODO Handle paired / multiple reads for paralellization (pairedBuffer should be created smartly)
+	// TODO check merge UMI (pas fait)
 	
 	public static void main(String[] args) throws Exception
 	{
@@ -40,7 +43,9 @@ public class FastReadCounter
 						
 			// Reading reads in BAM
 			time = System.currentTimeMillis();
-			HashMap<String, ResultStruct> results = BAM.readBAM();
+			HashMap<String, ResultStruct> results;
+			if(Parameters.nbThreads == 1) results = JobDispatcher.readBAM();
+			else results = JobDispatcher.readBAMParallel();
 			System.out.println("BAM reading DONE [" + Utils.toReadableTime(System.currentTimeMillis() - time) + "]");
 			
 			// Create the read count matrix
