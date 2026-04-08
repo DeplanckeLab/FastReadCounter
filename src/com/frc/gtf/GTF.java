@@ -8,6 +8,8 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.zip.GZIPInputStream;
 
 import com.frc.parameters.Global;
@@ -27,8 +29,7 @@ public class GTF
 		if(!Parameters.use_bam_tags) Forest.init();
 		int nbExons = 0;
 		int nbGenes = 0;
-		HashSet<String> uniqueGeneId = new HashSet<String>();
-		ArrayList<String> uniqueGeneName = new ArrayList<String>(); // It's actually not unique and should not be since two geneID can have the same gene Name => ArrayList
+		LinkedHashMap<String, String> uniqueGenes = new LinkedHashMap<>(); // Stores gene_id -> gene_name, in the order of appearance in the GTF file
 		while(line != null)
 		{
 	    	if(!line.startsWith("#"))
@@ -40,9 +41,10 @@ public class GTF
 					// Which type is it?
 					if(infos.type.equals("exon")) 
 					{
-						nbExons++;
 						if(!Parameters.use_bam_tags) Forest.addToTree(infos.chr, new IntervalLabelled((int)infos.start, (int)infos.end, infos.gene_id, infos.strand));
-						if(uniqueGeneId.add(infos.gene_id)) uniqueGeneName.add(infos.gene_name);
+						//if(uniqueGeneId.add(infos.gene_id)) uniqueGeneName.add(infos.gene_name);
+						uniqueGenes.putIfAbsent(infos.gene_id, infos.gene_name);
+						nbExons++;
 					}
 					else if(infos.type.equals("gene"))
 					{
@@ -59,14 +61,14 @@ public class GTF
 		if(nbGenes == 0) {
 			System.out.println("No Genes were detected in the GTF file. Probably the \"gene\" annotation is missing from the GTF file 3rd column?");
 			System.out.println("Trying to \"save the day\" by collapsing exons to their annotated gene_id");
-			for(String gene_id:uniqueGeneId) {
-				Global.geneIndex.put(gene_id, nbGenes);
-				Global.mappingGeneIdGeneName.put(gene_id, uniqueGeneName.get(nbGenes));
+			for(Map.Entry<String, String> entry : uniqueGenes.entrySet()) {
+				Global.geneIndex.put(entry.getKey(), nbGenes);
+				Global.mappingGeneIdGeneName.put(entry.getKey(), entry.getValue());
 				nbGenes++;
 			}
 		}
 
-		System.out.println(nbExons + " 'exons' are annotating " + uniqueGeneId.size() + " unique genes in the provided GTF file. In total " + nbGenes + " 'gene' annotations are found in the GTF file.");
+		System.out.println(nbExons + " 'exons' are annotating " + uniqueGenes.size() + " unique genes in the provided GTF file. In total " + nbGenes + " 'gene' annotations are found in the GTF file.");
 		
 		if(nbGenes == 0) {
 			System.err.println("We couldn't parse the GTF file. Please report this problem if the GTF is in standard format. Or use another GTF from another source.");
@@ -86,41 +88,41 @@ public class GTF
 		char c;
 		
 		// Chromosome
-		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		while(line.charAt(end) != '\t') end++; // or line.indexOf() should be equivalent
 		res.chr = line.substring(pos, end);
 		end++; pos = end;
 		
 		// Skip source
-		while((c = line.charAt(end)) != '\t') end++;
+		while(line.charAt(end) != '\t') end++;
 		end++; pos = end;
 		
 		// Type
-		while((c = line.charAt(end)) != '\t') end++;
+		while(line.charAt(end) != '\t') end++;
 		res.type = line.substring(pos, end);
 		if(!res.type.equals("exon") && !res.type.equals("gene")) return null;
 		end++; pos = end;
 		
 		// Start
-		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		while(line.charAt(end) != '\t') end++;
 		res.start = Long.parseLong(line.substring(pos, end));
 		end++; pos = end;
 
 		// End
-		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		while(line.charAt(end) != '\t') end++;
 		res.end = Long.parseLong(line.substring(pos, end));
 		end++; pos = end;
 		
 		// Ignore
-		while((c = line.charAt(end)) != '\t') end++;
+		while(line.charAt(end) != '\t') end++;
 		end++; pos = end;
 		
 		// Strand
-		while((c = line.charAt(end)) != '\t') end++; // or line.indexOf() should be equivalent
+		while(line.charAt(end) != '\t') end++;
 		res.strand = line.substring(pos, end).equals("+") ;
 		end++; pos = end;
 		
 		// Ignore
-		while((c = line.charAt(end)) != '\t') end++;
+		while(line.charAt(end) != '\t') end++;
 		end++; pos = end;
 		
 		// Info
